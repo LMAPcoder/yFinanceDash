@@ -2,11 +2,34 @@ import streamlit as st
 import pandas as pd
 
 from functions import plot_candles_stick_bar
-from functions import fetch_info
-from functions import fetch_history
-from functions import fetch_splits
+#from functions import fetch_info
+#from functions import fetch_history
+#from functions import fetch_splits
 from contact import contact_form
 
+@st.cache_data
+def fetch_info(ticker):
+    ticker = yf.Ticker(ticker)
+    info = ticker.info
+    if "quoteType" in ticker.info:
+        return info
+    else:
+        st.warning("Invalid ticker")
+        st.stop()
+
+@st.cache_data
+def fetch_history(ticker, period="3mo", interval="1d"):
+    ticker = yf.Ticker(ticker)
+    hist = ticker.history(
+        period=period,
+        interval=interval
+    )
+    return hist
+
+@st.cache_data
+def fetch_splits(ticker):
+    ticker = yf.Ticker(ticker)
+    return ticker.splits
 @st.dialog("Contact Me")
 def show_contact_form():
     contact_form()

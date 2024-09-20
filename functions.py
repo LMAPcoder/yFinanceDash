@@ -4,6 +4,30 @@ import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+@st.cache_data
+def fetch_info(ticker):
+    ticker = yf.Ticker(ticker)
+    info = ticker.info
+    if "quoteType" in ticker.info:
+        return info
+    else:
+        st.warning("Invalid ticker")
+        st.stop()
+
+@st.cache_data
+def fetch_history(ticker, period="3mo", interval="1d"):
+    ticker = yf.Ticker(ticker)
+    hist = ticker.history(
+        period=period,
+        interval=interval
+    )
+    return hist
+
+@st.cache_data
+def fetch_splits(ticker):
+    ticker = yf.Ticker(ticker)
+    return ticker.splits
+
 def plot_candles_stick_bar(df, title="", time_span=None):
 
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True,

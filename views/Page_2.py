@@ -2,27 +2,8 @@ import streamlit as st
 import pandas as pd
 
 from functions import plot_candles_stick
-#from functions import fetch_info
-#from functions import fetch_history
-
-@st.cache_data
-def fetch_info(ticker):
-    ticker = yf.Ticker(ticker)
-    info = ticker.info
-    if "quoteType" in ticker.info:
-        return info
-    else:
-        st.warning("Invalid ticker")
-        st.stop()
-
-@st.cache_data
-def fetch_history(ticker, period="3mo", interval="1d"):
-    ticker = yf.Ticker(ticker)
-    hist = ticker.history(
-        period=period,
-        interval=interval
-    )
-    return hist
+from functions import fetch_info
+from functions import fetch_history
 
 
 st.set_page_config(

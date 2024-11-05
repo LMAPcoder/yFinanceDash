@@ -59,12 +59,12 @@ with st.sidebar:
         placeholder="Select interval...",
     )
 
-    TOGGLE_VOL = st.toggle(
-        label="Volume",
-        value=True
-    )
-
     if len(TICKERS) == 1:
+
+        TOGGLE_VOL = st.toggle(
+            label="Volume",
+            value=True
+        )
 
         indicator_list = ['SMA_20', 'SMA_50', 'SMA_200', 'SMA_X', 'EMA_20', 'EMA_50', 'EMA_200', 'EMA_X', 'ATR', 'MACD', 'RSI']
 
@@ -110,9 +110,11 @@ with col1:
     URL = "https://finance.yahoo.com/markets/world-indices/"
 
     df = fetch_table(URL)
+    df['Symbol'] = df['Symbol'] + ' ' + df['Name']
     df['Symbol'] = df['Symbol'].apply(lambda x: x.replace(" ", "<br>", 1))
     df['Price'] = df['Price'].apply(format_value)
-    df = df.iloc[:10, :2]
+    df = df[['Symbol', 'Price']]
+    df = df.iloc[:10]
 
     fig = top_table(df)
     st.plotly_chart(fig, use_container_width=True)
@@ -123,9 +125,11 @@ with col2:
     URL = "https://finance.yahoo.com/markets/stocks/gainers/"
 
     df = fetch_table(URL)
+    df['Symbol'] = df['Symbol'] + ' ' + df['Name']
     df['Symbol'] = df['Symbol'].apply(lambda x: x.replace(" ", "<br>", 1))
     df['Price'] = df['Price'].apply(format_value)
-    df = df.iloc[:10, :2]
+    df = df[['Symbol', 'Price']]
+    df = df.iloc[:10]
 
     fig = top_table(df)
     st.plotly_chart(fig, use_container_width=False)
@@ -136,9 +140,11 @@ with col3:
     URL = "https://finance.yahoo.com/markets/stocks/losers/"
 
     df = fetch_table(URL)
+    df['Symbol'] = df['Symbol'] + ' ' + df['Name']
     df['Symbol'] = df['Symbol'].apply(lambda x: x.replace(" ", "<br>", 1))
     df['Price'] = df['Price'].apply(format_value)
-    df = df.iloc[:10, :2]
+    df = df[['Symbol', 'Price']]
+    df = df.iloc[:10]
 
     fig = top_table(df)
     st.plotly_chart(fig, use_container_width=False)
@@ -152,52 +158,21 @@ if len(TICKERS) == 1:
 
     info = fetch_info(TICKER)
 
-    TYPE = info['quoteType']
     NAME = info['shortName']
 
-    st.header(f"Stock: {TICKER}")
+    st.header(f"Security: {TICKER}")
     st.write(NAME)
 
     #----INFORMATION----
     with st.expander("More info"):
-        if TYPE == "EQUITY":
-            data = {
-                'Market Exchange': info['exchange'],
-                'Sector': info['sector'],
-                'Industry': info['industry'],
-                'Market Capitalization': str(info['marketCap']),
-                'Quote currency': info['currency'],
-                'Beta': str(info['beta'])
-            }
-            PRICE = info['currentPrice']
+        df, PRICE = info_table(info)
+        df = df.reset_index()
+        df = df.rename(columns={"index": "Feature", 0: "Value"})
 
-            df = pd.DataFrame([data]).T
-            df = df.reset_index()
-            df = df.rename(columns={"index": "Feature", 0: "Value"})
-            st.dataframe(
-                data=df,
-                hide_index=True
-            )
-        elif TYPE == "ETF":
-            data = {
-                'Market Exchange': info['exchange'],
-                'Fund Family': info['fundFamily'],
-                'Category': info['category'],
-                'Total Assets': info['totalAssets'],
-                'Quote currency': info['currency'],
-                'Beta': info['beta3Year']
-            }
-            PRICE = info['navPrice']
-
-            df = pd.DataFrame([data]).T
-            df = df.reset_index()
-            df = df.rename(columns={"index": "Feature", 0: "Value"})
-            st.dataframe(
-                data=df,
-                hide_index=True
-            )
-        elif TYPE == "FUTURE":
-            PRICE = info['open']
+        st.dataframe(
+            data=df,
+            hide_index=True
+        )
 
 
     #----METRICS----
@@ -302,9 +277,14 @@ else:
 
     st.header(f"Securities: {TITLE}")
 
-    dfs = list()
+    dfs_hist = list()
+    dfs_info = list()
 
     for TICKER in TICKERS:
+        info = fetch_info(TICKER)
+        df, PRICE = info_table(info)
+        df = df.rename(columns={0: TICKER})
+        dfs_info.append(df)
 
         hist = fetch_history(TICKER, period=PERIOD, interval=INTERVAL)
 
@@ -312,11 +292,23 @@ else:
 
         hist['Pct_change'] = ((hist['Close'] - hist['Close'].iloc[0]) / hist['Close'].iloc[0])
 
-        dfs.append(hist)
+        dfs_hist.append(hist)
 
-    df = pd.concat(dfs, ignore_index=False)
+    df = pd.concat(dfs_info, axis=1, join='inner')
+    df = df.reset_index()
+    df = df.rename(columns={"index": "Feature"})
+
+    # ----INFORMATION----
+    with st.expander("More info"):
+
+        st.dataframe(
+            data=df,
+            hide_index=True
+        )
 
     # ----GAUGES----
+
+    df = pd.concat(dfs_hist, ignore_index=False)
 
     if len(TICKERS) <= 5:
 

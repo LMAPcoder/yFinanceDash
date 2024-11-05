@@ -65,6 +65,39 @@ def top_table(df):
 
     return fig
 
+def info_table(info):
+
+    TYPE = info['quoteType']
+    if TYPE == "EQUITY":
+        data = {
+            'Market Exchange': info['exchange'],
+            'Sector': info['sector'],
+            'Industry': info['industry'],
+            'Market Capitalization': str(info['marketCap']),
+            'Quote currency': info['currency'],
+            'Beta': str(info['beta'])
+        }
+        PRICE = info['currentPrice']
+
+
+    elif TYPE == "ETF":
+        data = {
+            'Market Exchange': info['exchange'],
+            'Fund Family': info['fundFamily'],
+            'Category': info['category'],
+            'Total Assets': info['totalAssets'],
+            'Quote currency': info['currency'],
+            'Beta': info['beta3Year']
+        }
+        PRICE = info['navPrice']
+
+    elif TYPE == "FUTURE":
+        PRICE = info['open']
+
+    df = pd.DataFrame([data]).T
+
+    return df, PRICE
+
 
 def plot_gauge(df, ticker):
     df = df[df['Ticker'] == ticker]

@@ -31,6 +31,8 @@ with st.sidebar:
 
     TICKERS = [item.strip() for item in TICKERS.split(",") if item.strip() != ""]
 
+    TICKERS = list(set(TICKERS))
+
     TICKERS = TICKERS[:10]
 
     TICKERS = [TICKER for TICKER in TICKERS if fetch_info(TICKER) is not None]

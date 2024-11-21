@@ -4,6 +4,7 @@ import pandas as pd
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import plotly.colors as pc
 
 @st.cache_data
 def fetch_info(ticker):
@@ -24,6 +25,33 @@ def fetch_history(ticker, period="3mo", interval="1d"):
         interval=interval
     )
     return hist
+
+@st.cache_data
+def fetch_balance(ticker, tp="Annual"):
+    ticker = yf.Ticker(ticker)
+    if tp == "Annual":
+        bs = ticker.balance_sheet
+    else:
+        bs = ticker.quarterly_balance_sheet
+    return bs
+
+@st.cache_data
+def fetch_income(ticker, tp="Annual"):
+    ticker = yf.Ticker(ticker)
+    if tp == "Annual":
+        ins = ticker.income_stmt
+    else:
+        ins = ticker.quarterly_income_stmt
+    return ins
+
+@st.cache_data
+def fetch_cash(ticker, tp="Annually"):
+    ticker = yf.Ticker(ticker)
+    if tp == "Annually":
+        cf = ticker.cashflow
+    else:
+        cf = ticker.quarterly_cashflow
+    return cf
 
 @st.cache_data
 def fetch_splits(ticker):
@@ -381,3 +409,501 @@ def plot_candles_stick_bar_multiple(df, title=""):
 
     return fig
 
+def plot_balance(df, ticker="", currency=""):
+    df.columns = pd.to_datetime(df.columns).strftime('%b %d, %Y')
+    components = {
+        'Total Assets': {
+            'color': 'forestgreen'
+        },
+        'Stockholders Equity': {
+            'color': 'CornflowerBlue'  # http://davidbau.com/colors/
+        },
+        'Total Liabilities Net Minority Interest': {
+            'color': 'tomato'
+        },
+    }
+    fig = go.Figure()
+
+    for component in components:
+        if component == 'Total Assets':
+            fig.add_trace(go.Bar(
+                x=[df.columns, ['Assets'] * len(df.columns)],
+                y=df.loc[component],
+                name=component,
+                marker=dict(color=components[component]['color'])
+            ))
+        else:
+
+            fig.add_trace(go.Bar(
+                x=[df.columns, ['L+E'] * len(df.columns)],
+                y=df.loc[component],
+                name=component,
+                marker=dict(color=components[component]['color'])
+            ))
+
+        offset = 0.03 * df.loc['Total Assets'].max()
+
+        for i, date in enumerate(df.columns):
+            fig.add_annotation(
+                x=[date, "Assets"],
+                y=df.loc['Total Assets', date] + offset,
+                text=str(round(df.loc['Total Assets', date] / 1e9, 1)) + 'B',  # Format as text
+                showarrow=False,
+                font=dict(size=12, color="black"),
+                align="center"
+            )
+
+        fig.update_layout(
+            barmode='stack',
+            title=f'Accounting Balance: {ticker}',
+            xaxis_title='Year',
+            yaxis_title=f'Amount (in {currency})',
+            legend_title='Balance components',
+        )
+
+    return fig
+
+def plot_assets(df, ticker="", currency=""):
+    assests = {
+        'Current Assets': {
+            'Cash Cash Equivalents And Short Term Investments': {},
+            'Receivables': {},
+            'Inventory': {},
+            'Hedging Assets Current': None,
+            'Other Current Assets': None
+        },
+        'Total Non Current Assets': {
+            'Net PPE': {},
+            'Goodwill And Other Intangible Assets': {},
+            'Investments And Advances': {},
+            'Other Non Current Assets': None
+        }
+    }
+
+    fig = make_subplots(
+        rows=1, cols=2,
+        shared_yaxes=True,  # Share x-axis for both subplots
+        horizontal_spacing=0.05,  # Adjust the space between the subplots
+        subplot_titles=['Current Assets', 'Non-Current Assets']  # Titles for the subplots
+    )
+
+    colors = pc.sequential.Blugrn[::-1]
+    i = 0
+
+    for component in assests['Current Assets']:
+        fig.add_trace(go.Bar(
+            x=df.columns,
+            y=df.loc[component],
+            name=component,
+            marker=dict(
+                color=colors[i]  # Assign a color from the green color scale
+            ),
+            legendgroup='Current Assets',
+            showlegend=True
+        ), row=1, col=1)
+        i += 1
+
+    colors = pc.sequential.Purp[::-1]
+    i = 0
+
+    for component in assests['Total Non Current Assets']:
+        fig.add_trace(go.Bar(
+            x=df.columns,
+            y=df.loc[component],
+            name=component,
+            marker=dict(
+                color=colors[i]  # Assign a color from the green color scale
+            ),
+            legendgroup='Non-current Assets',
+            showlegend=True
+        ), row=1, col=2)
+        i += 1
+
+    offset = 0.03 * max(df.loc['Current Assets'].max(), df.loc['Total Non Current Assets'].max())
+
+    for i, date in enumerate(df.columns):
+        fig.add_annotation(
+            x=date,
+            y=df.loc['Current Assets', date] + offset,
+            text=str(round(df.loc['Current Assets', date] / 1e9, 1)) + 'B',  # Format as text
+            showarrow=False,
+            font=dict(size=12, color="black"),
+            align="center",
+            row=1, col=1
+        )
+        fig.add_annotation(
+            x=date,
+            y=df.loc['Total Non Current Assets', date] + offset,
+            text=str(round(df.loc['Total Non Current Assets', date] / 1e9, 1)) + 'B',  # Format as text
+            showarrow=False,
+            font=dict(size=12, color="black"),
+            align="center",
+            row=1, col=2
+        )
+
+    # Update layout to stack bars and set titles
+    fig.update_layout(
+        barmode='stack',
+        title=f'Assets: {ticker}',
+        #xaxis1_title='Year',
+        #xaxis2_title='Year',
+        xaxis1=dict(
+            title='Date',
+            type='date',  # Ensure the x-axis is treated as a date/time axis
+            tickvals=df.columns
+        ),
+        xaxis2=dict(
+            title='Date',
+            type='date',  # Ensure the x-axis is treated as a date/time axis
+            tickvals=df.columns
+        ),
+        yaxis_title=f'Amount (in {currency})',
+        # yaxis2_title=f'Amount (in {currency})',
+        legend_title='Asset Components',
+        # height=800
+    )
+
+    return fig
+
+def plot_liabilities(df, ticker="", currency=""):
+    liabilities = {
+        'Current Liabilities': {
+            'Payables And Accrued Expenses': {},
+            'Pensionand Other Post Retirement Benefit Plans Current': None,
+            'Current Debt And Capital Lease Obligation': {},
+            'Current Deferred Liabilities': {},
+            'Other Current Liabilities': {}
+        },
+        'Total Non Current Liabilities Net Minority Interest': {
+            'Long Term Debt And Capital Lease Obligation': {},
+            'Non Current Deferred Liabilities': {},
+            'Tradeand Other Payables Non Current': None,
+            'Other Non Current Liabilities': None
+        }
+    }
+
+    fig = make_subplots(
+        rows=1, cols=2,
+        shared_yaxes=True,  # Share x-axis for both subplots
+        horizontal_spacing=0.05,  # Adjust the space between the subplots
+        subplot_titles=['Current Liabilities', 'Non-Current Liabilities']  # Titles for the subplots
+    )
+
+    colors = pc.sequential.Oryel[::-1]
+    i = 0
+
+    for component in liabilities['Current Liabilities']:
+        fig.add_trace(go.Bar(
+            x=df.columns,
+            y=df.loc[component],
+            name=component,
+            marker=dict(
+                color=colors[i]  # Assign a color from the green color scale
+            ),
+            legendgroup='Current Liabilities',
+            showlegend=True
+        ), row=1, col=1)
+        i += 1
+
+    colors = pc.sequential.Brwnyl[::-1]
+    i = 0
+
+    for component in liabilities['Total Non Current Liabilities Net Minority Interest']:
+        fig.add_trace(go.Bar(
+            x=df.columns,
+            y=df.loc[component],
+            name=component,
+            marker=dict(
+                color=colors[i]  # Assign a color from the green color scale
+            ),
+            legendgroup='Non-current Liabilities',
+            showlegend=True
+        ), row=1, col=2)
+        i += 1
+
+    offset = 0.03 * max(df.loc['Current Liabilities'].max(),
+                        df.loc['Total Non Current Liabilities Net Minority Interest'].max())
+
+    for i, date in enumerate(df.columns):
+        fig.add_annotation(
+            x=date,
+            y=df.loc['Current Liabilities', date] + offset,
+            text=str(round(df.loc['Current Liabilities', date] / 1e9, 1)) + 'B',  # Format as text
+            showarrow=False,
+            font=dict(size=12, color="black"),
+            align="center",
+            row=1, col=1
+        )
+        fig.add_annotation(
+            x=date,
+            y=df.loc['Total Non Current Liabilities Net Minority Interest', date] + offset,
+            text=str(round(df.loc['Total Non Current Liabilities Net Minority Interest', date] / 1e9, 1)) + 'B',
+            # Format as text
+            showarrow=False,
+            font=dict(size=12, color="black"),
+            align="center",
+            row=1, col=2
+        )
+
+    # Update layout to stack bars and set titles
+    fig.update_layout(
+        barmode='stack',
+        title=f'Liabilities: {ticker}',
+        #xaxis1_title='Year',
+        #xaxis2_title='Year',
+        xaxis1=dict(
+            title='Date',
+            type='date',  # Ensure the x-axis is treated as a date/time axis
+            tickvals=df.columns
+        ),
+        xaxis2=dict(
+            title='Date',
+            type='date',  # Ensure the x-axis is treated as a date/time axis
+            tickvals=df.columns
+        ),
+        yaxis_title=f'Amount (in {currency})',
+        # yaxis2_title=f'Amount (in {currency})',
+        legend_title='Liability Components',
+        # height=800
+    )
+
+    return fig
+
+def plot_equity(df, ticker="", currency=""):
+    equity = {
+        'Stockholders Equity': {
+            'Capital Stock': {},
+            'Retained Earnings': None,
+            'Gains Losses Not Affecting Retained Earnings': {},
+        },
+    }
+
+    fig = go.Figure()
+
+    colors = pc.sequential.Blues[::-1]
+    i = 0
+
+    for component in equity['Stockholders Equity']:
+        fig.add_trace(go.Bar(
+            x=df.columns,
+            y=df.loc[component],
+            name=component,
+            marker=dict(
+                color=colors[i]  # Assign a color from the green color scale
+            ),
+        ))
+        i += 2
+
+    offset = 0.05 * df.loc['Stockholders Equity'].max()
+
+    for i, date in enumerate(df.columns):
+        fig.add_annotation(
+            x=date,
+            y=df.loc['Stockholders Equity', date] + offset,
+            text=str(round(df.loc['Stockholders Equity', date] / 1e9, 1)) + 'B',  # Format as text
+            showarrow=False,
+            font=dict(size=12, color="black"),
+            align="center"
+        )
+
+    # Update layout to stack bars and set titles
+    fig.update_layout(
+        barmode='relative',
+        title=f'Equity: {ticker}',
+        # xaxis_title='Year',
+        xaxis=dict(
+            title='Date',
+            type='date',  # Ensure the x-axis is treated as a date/time axis
+            # tickformat='%Y',
+            # dtick='M12'
+            tickvals=df.columns
+        ),
+        yaxis_title=f'Amount (in {currency})',
+        legend_title='Equity Components',
+    )
+
+    return fig
+
+def plot_income(df, ticker="", currency=""):
+    income_st = {
+        'Total Revenue': {
+            'name': 'Total Revenue',
+            'value': df.loc['Total Revenue'],
+            'base': None,
+            'color': 'rgb(0,68,27)'
+        },
+        'Cost Of Revenue': {
+            'name': 'Cost of Revenue',
+            'value': -df.loc['Cost Of Revenue'],
+            'base': df.loc['Total Revenue'],
+            'color': 'rgb(165,15,21)'
+        },
+        'Gross Profit': {
+            'name': 'Gross Profit',
+            'value': df.loc['Gross Profit'],
+            'base': None,
+            'color': 'rgb(35,139,69)'
+        },
+        'Operating Expense': {
+            'name': 'Operating Expense',
+            'value': -df.loc['Operating Expense'],
+            'base': df.loc['Gross Profit'],
+            'color': 'rgb(239,59,44)'
+        },
+        'Operating Income': {
+            'name': 'Operating Income',
+            'value': df.loc['Operating Income'],
+            'base': None,
+            'color': 'rgb(116,196,118)'
+        },
+        'Net Non Operating Interest Income Expense': {
+            'name': 'Net Non Operating I/E',
+            'value': df.loc['Net Non Operating Interest Income Expense'],
+            'base': df.loc['Operating Income'],
+            'color': 'rgb(130, 109, 186)'
+        },
+        'Other Income Expense': {
+            'name': 'Other Income Expense',
+            'value': df.loc['Other Income Expense'],
+            'base': df.loc['Operating Income'] + df.loc['Net Non Operating Interest Income Expense'],
+            'color': 'rgb(185, 152, 221)'
+        },
+        'Pretax Income': {
+            'name': 'Pretax Income',
+            'value': df.loc['Pretax Income'],
+            'base': None,
+            'color': 'rgb(199,233,192)'
+        },
+        'Tax Provision': {
+            'name': 'Tax Provision',
+            'value': -df.loc['Tax Provision'],
+            'base': df.loc['Pretax Income'],
+            'color': 'rgb(252,146,114)'
+        },
+        'Net Income Common Stockholders': {
+            'name': 'Net Income',
+            'value': df.loc['Net Income Common Stockholders'],
+            'base': None,
+            'color': 'rgb(224, 253, 74)'
+        }
+    }
+
+    # Create traces for stacked data
+    traces = list()
+
+    for component in income_st:
+        trace = go.Bar(
+            x=df.columns,
+            y=income_st[component]['value'],
+            name=income_st[component]['name'],
+            base=income_st[component]['base'],
+            marker=dict(
+                color=income_st[component]['color']  # Assign a color from the green color scale
+            ),
+        )
+
+        traces.append(trace)
+
+    # Create the figure
+    fig = go.Figure(data=traces)
+
+    # Update layout to stack bars and set titles
+    fig.update_layout(
+        barmode='group',
+        # barmode = 'overlay',
+        title=f'Income Statement: {ticker}',
+        # xaxis_title='Year',
+        xaxis=dict(
+            title='Date',
+            type='date',  # Ensure the x-axis is treated as a date/time axis
+            tickvals=df.columns
+        ),
+        yaxis_title=f'Amount (in {currency})',
+        legend_title='I/E segregation',
+    )
+
+    return fig
+
+def plot_cash(df, ticker="", currency=""):
+    cashflow = {
+        'Operating Cash Flow': {},
+        'Investing Cash Flow': {},
+        'Financing Cash Flow': {},
+        'End Cash Position': {
+            'Changes In Cash': None,
+            'Effect Of Exchange Rate Changes': None,
+            'Beginning Cash Position': None
+        }
+    }
+
+    fig = go.Figure()
+
+    colors = pc.sequential.Plotly3[::-1]
+    i = 0
+
+    for component in cashflow:
+        if component == 'End Cash Position':
+            for item in cashflow[component]:
+                if item == 'Changes In Cash':
+                    fig.add_trace(go.Scatter(
+                        x=df.columns,
+                        y=df.loc[item],
+                        mode='lines',
+                        line=dict(color='black', width=2, dash='dash'),
+                        name=item,
+                    ))
+                else:
+                    fig.add_trace(go.Bar(
+                        x=df.columns,
+                        y=df.loc[item],
+                        name=item,
+                        marker=dict(
+                            color=colors[i]  # Assign a color from the green color scale
+                        ),
+                    ))
+                    i += 2
+            fig.add_trace(go.Scatter(
+                x=df.columns,
+                y=df.loc[component],
+                mode='lines+markers',
+                line=dict(color='black', width=3),
+                name=component,
+            ))
+        else:
+            fig.add_trace(go.Bar(
+                x=df.columns,
+                y=df.loc[component],
+                name=component,
+                marker=dict(
+                    color=colors[i]  # Assign a color from the green color scale
+                ),
+            ))
+            i += 2
+
+    offset = 0.1 * df.loc['End Cash Position'].max()
+
+    for i, date in enumerate(df.columns):
+        fig.add_annotation(
+            x=date,
+            y=df.loc['End Cash Position', date] + offset,
+            text=str(round(df.loc['End Cash Position', date] / 1e9, 1)) + 'B',  # Format as text
+            showarrow=False,
+            font=dict(size=12, color="black"),
+            align="center"
+        )
+
+    # Update layout to stack bars and set titles
+    fig.update_layout(
+        barmode='relative',
+        title=f'Cash flow: {ticker}',
+        # xaxis_title='Year',
+        xaxis=dict(
+            title='Date',
+            type='date',  # Ensure the x-axis is treated as a date/time axis
+            tickvals=df.columns
+        ),
+        yaxis_title=f'Amount (in {currency})',
+        legend_title='Cash Flow Components',
+    )
+
+    return fig

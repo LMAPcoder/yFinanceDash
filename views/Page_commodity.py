@@ -1,7 +1,3 @@
-import streamlit as st
-import pandas as pd
-
-from functions import plot_candles_stick
 from functions import *
 from contact import contact_form
 
@@ -10,8 +6,8 @@ def show_contact_form():
     contact_form()
 
 st.set_page_config(
-    page_title="Forex", # The page title, shown in the browser tab.
-    page_icon=":moneybag:", # The page favicon.
+    page_title="Commodities", # The page title, shown in the browser tab.
+    page_icon=":material/oil_barrel:",
     layout="wide", # How the page content should be laid out.
     initial_sidebar_state="auto", # How the sidebar should start out.
     menu_items={ # Configure the menu that appears on the top-right side of this app.
@@ -19,53 +15,31 @@ st.set_page_config(
     }
 )
 
-
 # ---- SIDEBAR ----
 with st.sidebar:
-
-    currencies_1 = {
-        'United States Dollar': 'USD',
-        'Euro': 'EUR',
-        'Japanese Yen': 'JPY',
-        'British Pound Sterling': 'GBP',
-        'Chinese Yuan': 'CNY',
-        'Argentine Peso': 'ARS',
-        'Bitcoin': 'BTC',
-        'Ethereum': 'ETH'
-    }
-    currencies_2 = {
-        'United States Dollar': 'USD',
-        'Euro': 'EUR',
-        'Japanese Yen': 'JPY',
-        'British Pound Sterling': 'GBP',
-        'Chinese Yuan': 'CNY',
-        'Argentine Peso': 'ARS'
+    commodities = {
+        'West Texas Intermediate': 'CL=F',
+        'Brent': 'BZ=F',
+        'Natural Gas': 'NG=F',
+        'Copper': 'HG=F',
+        #'Aluminum': 'ALUMINUM',
+        'Wheat': 'KE=F',
+        'Corn': 'ZC=F',
+        'Cotton': 'CT=F',
+        'Sugar': 'SB=F',
+        'Coffee': 'KC=F'
     }
 
-    option1 = st.selectbox(
-        label="Base currency",
-        options=list(currencies_1.keys()),
+    option = st.selectbox(
+        label="Commodity",
+        options=list(commodities.keys()),
         index=0,
-        placeholder="Select origin currency...",
+        placeholder="Select commodity...",
     )
 
-    CURRENCY_1 = currencies_1[option1]
+    COMMODITY = commodities[option]
 
-    st.write(CURRENCY_1)
-
-    if option1 in currencies_2:
-        currencies_2.pop(option1)
-
-    option2 = st.selectbox(
-        label="Counter currency",
-        options=list(currencies_2.keys()),
-        index=0,
-        placeholder="Select destination currency...",
-    )
-
-    CURRENCY_2 = currencies_2[option2]
-
-    st.write(currencies_2[option2])
+    st.write(COMMODITY)
 
     periods = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]
 
@@ -89,6 +63,11 @@ with st.sidebar:
         placeholder="Select interval...",
     )
 
+    TOGGLE_VOL = st.toggle(
+        label="Volume",
+        value=True
+    )
+
     indicator_list = ['SMA_20', 'SMA_50', 'SMA_200', 'SMA_X', 'EMA_20', 'EMA_50', 'EMA_200', 'EMA_X', 'ATR', 'MACD', 'RSI']
 
     INDICATORS = st.multiselect(
@@ -106,7 +85,6 @@ with st.sidebar:
         INDICATORS = [indicator.replace("X", str(TIME_SPAN)) if '_X' in indicator else indicator for indicator in INDICATORS]
 
     st.sidebar.markdown("Made with ❤️ by Leonardo")
-
     button = st.button("✉️ Contact Me", key="contact")
 
     if button:
@@ -115,41 +93,49 @@ with st.sidebar:
 
 # ---- MAINPAGE ----
 
-st.title("Forex Market")
+st.title("Commodity Market")
 
-col1, col2, col3 = st.columns(3, gap="medium")
+#----FIRST SECTION----
 
-if CURRENCY_1 in ["BTC", "ETH", "USTD"]:
-    TICKER = f'{CURRENCY_1}-{CURRENCY_2}'
-else:
-    TICKER = f'{CURRENCY_1}{CURRENCY_2}=X'
 
-info = fetch_info(TICKER)
+st.subheader("Top Commodities")
 
-EXCHANGE_RATE = info['previousClose']
-BID_PRICE = info['dayLow']
-ASK_PRICE = info['dayHigh']
+URL = "https://finance.yahoo.com/markets/commodities/"
 
-col1.metric(
-    "Exchange Rate",
-    value=f'{EXCHANGE_RATE:.4f}'
-    )
+df = fetch_table(URL)
 
-col2.metric(
-    "Bid Price",
-    value=f'{BID_PRICE:.4f}'
-)
+COMMODITIES = ["GC=F", "SI=F", "HG=F", "NG=F", "BZ=F", "KC=F", "KE=F", "ZS=F"]
 
-col3.metric(
-    "Ask Price",
-    value=f'{ASK_PRICE:.4f}'
-)
+with st.container(border=True):
+    i = 0
+    for _ in range(2):
+        cols = st.columns(4, gap="small")
+        for col in cols:
+            with col:
+                row = df[df['Symbol'] == COMMODITIES[i]].iloc[0]
+                name = row['Name']
+                symbol = row['Symbol']
+                price, change, change_pt = row['Price'].split()
+                st.metric(
+                    label=f'{name}',
+                    value=f'{price}',
+                    delta=f'{change} {change_pt}'
+                )
+            i += 1
 
-hist = fetch_history(TICKER, period=PERIOD, interval=INTERVAL)
+#----SECOND SECTION----
+
+info = fetch_info(COMMODITY)
+
+TITLE = f'Commodity: {option}'
+
+st.header(TITLE)
+
+hist = fetch_history(COMMODITY, period=PERIOD, interval=INTERVAL)
 df = hist.copy()
-df = df.drop(columns=['Volume'], axis=1)
 
-TITLE = f'Currencies: {CURRENCY_1}/{CURRENCY_1}'
+if not TOGGLE_VOL:
+    df = df.drop(columns=['Volume'], axis=1)
 
 for INDICATOR in INDICATORS:
     if "SMA" in INDICATOR:
@@ -194,7 +180,7 @@ if "RSI" in INDICATORS:
 
     df['RSI'] = 100 - (100 / (1 + rs))
 
-fig = plot_candles_stick_bar(df, TITLE)
+fig = plot_candles_stick_bar(df, "Candlestick Chart")
 
 st.plotly_chart(fig, use_container_width=True)
 

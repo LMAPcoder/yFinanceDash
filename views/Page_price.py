@@ -1,6 +1,3 @@
-import streamlit as st
-import pandas as pd
-
 from functions import *
 from contact import contact_form
 
@@ -10,7 +7,7 @@ def show_contact_form():
 
 st.set_page_config(
     page_title="Stock", # The page title, shown in the browser tab.
-    page_icon=":chart:", # The page favicon.
+    page_icon=":material/stacked_line_chart:",
     layout="wide", # How the page content should be laid out.
     initial_sidebar_state="auto", # How the sidebar should start out.
     menu_items={ # Configure the menu that appears on the top-right side of this app.
@@ -35,8 +32,6 @@ with st.sidebar:
 
     TICKERS = TICKERS[:10]
 
-    TICKERS = [TICKER for TICKER in TICKERS if fetch_info(TICKER) is not None]
-
     st.write("eg.: MSFT, QQQ, SPY (max 10)")
 
     period_list = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]
@@ -60,6 +55,8 @@ with st.sidebar:
         index=len(interval_list) - 4,
         placeholder="Select interval...",
     )
+
+    TICKERS = [TICKER for TICKER in TICKERS if fetch_info(TICKER) is not None]
 
     if len(TICKERS) == 1:
 
@@ -98,11 +95,9 @@ with st.sidebar:
 
 
 # ---- MAINPAGE ----
-
-
-#----FIRST SECTION----
 st.title("Stock Market")
 
+#----FIRST SECTION----
 
 col1, col2, col3 = st.columns(3, gap="small")
 
@@ -112,14 +107,25 @@ with col1:
     URL = "https://finance.yahoo.com/markets/world-indices/"
 
     df = fetch_table(URL)
-    df['Symbol'] = df['Symbol'] + ' ' + df['Name']
-    df['Symbol'] = df['Symbol'].apply(lambda x: x.replace(" ", "<br>", 1))
-    df['Price'] = df['Price'].apply(format_value)
-    df = df[['Symbol', 'Price']]
-    df = df.iloc[:10]
 
-    fig = top_table(df)
-    st.plotly_chart(fig, use_container_width=True)
+    INDICES = ["^GSPC", "^DJI", "^IXIC", "^N225", "^GDAXI", "^MERV"]
+
+    with st.container(border=True):
+        i = 0
+        for _ in range(3):
+            cols = st.columns(2, gap="small")
+            for col in cols:
+                with col:
+                    row = df[df['Symbol'] == INDICES[i]].iloc[0]
+                    name = row['Name']
+                    symbol = row['Symbol']
+                    price, change, change_pt = row['Price'].split()
+                    st.metric(
+                        label=f'{name} ({symbol})',
+                        value=f'{price}',
+                        delta=f'{change} {change_pt}'
+                    )
+                i += 1
 
 with col2:
     st.subheader("Top Gainers")
@@ -127,14 +133,23 @@ with col2:
     URL = "https://finance.yahoo.com/markets/stocks/gainers/"
 
     df = fetch_table(URL)
-    df['Symbol'] = df['Symbol'] + ' ' + df['Name']
-    df['Symbol'] = df['Symbol'].apply(lambda x: x.replace(" ", "<br>", 1))
-    df['Price'] = df['Price'].apply(format_value)
-    df = df[['Symbol', 'Price']]
-    df = df.iloc[:10]
 
-    fig = top_table(df)
-    st.plotly_chart(fig, use_container_width=False)
+    with st.container(border=True):
+        i = 0
+        for _ in range(3):
+            cols = st.columns(2, gap="small")
+            for col in cols:
+                with col:
+                    row = df.iloc[i]
+                    name = row['Name']
+                    symbol = row['Symbol']
+                    price, change, change_pt = row['Price'].split()
+                    st.metric(
+                        label=f'{name} ({symbol})',
+                        value=f'{price}',
+                        delta=f'{change} {change_pt}'
+                    )
+                i += 1
 
 with col3:
     st.subheader("Top Losers")
@@ -142,14 +157,23 @@ with col3:
     URL = "https://finance.yahoo.com/markets/stocks/losers/"
 
     df = fetch_table(URL)
-    df['Symbol'] = df['Symbol'] + ' ' + df['Name']
-    df['Symbol'] = df['Symbol'].apply(lambda x: x.replace(" ", "<br>", 1))
-    df['Price'] = df['Price'].apply(format_value)
-    df = df[['Symbol', 'Price']]
-    df = df.iloc[:10]
 
-    fig = top_table(df)
-    st.plotly_chart(fig, use_container_width=False)
+    with st.container(border=True):
+        i = 0
+        for _ in range(3):
+            cols = st.columns(2, gap="small")
+            for col in cols:
+                with col:
+                    row = df.iloc[i]
+                    name = row['Name']
+                    symbol = row['Symbol']
+                    price, change, change_pt = row['Price'].split()
+                    st.metric(
+                        label=f'{name} ({symbol})',
+                        value=f'{price}',
+                        delta=f'{change} {change_pt}'
+                    )
+                i += 1
 
 
 #----SECOND SECTION----

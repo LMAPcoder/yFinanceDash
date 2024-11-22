@@ -10,13 +10,26 @@ st.set_page_config(
     }
 )
 
+# ----SESSION STATE -----
+all_my_widget_keys_to_keep = {
+    'tickers': "MSFT"
+}
+
+for key in all_my_widget_keys_to_keep:
+    if key not in st.session_state:
+        st.session_state[key] = all_my_widget_keys_to_keep[key]
+
+for key in all_my_widget_keys_to_keep:
+    st.session_state[key] = st.session_state[key]
+
 
 # ---- SIDEBAR ----
 with st.sidebar:
 
     TICKER = st.text_input(
         label="Securities:",
-        value='MSFT'
+        value='MSFT',
+        key='tickers'
     )
 
     TIME_PERIOD = st.radio(

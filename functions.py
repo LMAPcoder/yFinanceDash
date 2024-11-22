@@ -468,6 +468,7 @@ def plot_assets(df, ticker="", currency=""):
         'Current Assets': {
             'Cash Cash Equivalents And Short Term Investments': {},
             'Receivables': {},
+            'Prepaid Assets': None,
             'Inventory': {},
             'Hedging Assets Current': None,
             'Other Current Assets': None
@@ -476,6 +477,7 @@ def plot_assets(df, ticker="", currency=""):
             'Net PPE': {},
             'Goodwill And Other Intangible Assets': {},
             'Investments And Advances': {},
+            'Investment Properties': None,
             'Other Non Current Assets': None
         }
     }
@@ -491,33 +493,35 @@ def plot_assets(df, ticker="", currency=""):
     i = 0
 
     for component in assests['Current Assets']:
-        fig.add_trace(go.Bar(
-            x=df.columns,
-            y=df.loc[component],
-            name=component,
-            marker=dict(
-                color=colors[i]  # Assign a color from the green color scale
-            ),
-            legendgroup='Current Assets',
-            showlegend=True
-        ), row=1, col=1)
-        i += 1
+        if component in df.index:
+            fig.add_trace(go.Bar(
+                x=df.columns,
+                y=df.loc[component],
+                name=component,
+                marker=dict(
+                    color=colors[i]  # Assign a color from the green color scale
+                ),
+                legendgroup='Current Assets',
+                showlegend=True
+            ), row=1, col=1)
+            i += 1
 
     colors = pc.sequential.Purp[::-1]
     i = 0
 
     for component in assests['Total Non Current Assets']:
-        fig.add_trace(go.Bar(
-            x=df.columns,
-            y=df.loc[component],
-            name=component,
-            marker=dict(
-                color=colors[i]  # Assign a color from the green color scale
-            ),
-            legendgroup='Non-current Assets',
-            showlegend=True
-        ), row=1, col=2)
-        i += 1
+        if component in df.index:
+            fig.add_trace(go.Bar(
+                x=df.columns,
+                y=df.loc[component],
+                name=component,
+                marker=dict(
+                    color=colors[i]  # Assign a color from the green color scale
+                ),
+                legendgroup='Non-current Assets',
+                showlegend=True
+            ), row=1, col=2)
+            i += 1
 
     offset = 0.03 * max(df.loc['Current Assets'].max(), df.loc['Total Non Current Assets'].max())
 
@@ -593,33 +597,35 @@ def plot_liabilities(df, ticker="", currency=""):
     i = 0
 
     for component in liabilities['Current Liabilities']:
-        fig.add_trace(go.Bar(
-            x=df.columns,
-            y=df.loc[component],
-            name=component,
-            marker=dict(
-                color=colors[i]  # Assign a color from the green color scale
-            ),
-            legendgroup='Current Liabilities',
-            showlegend=True
-        ), row=1, col=1)
-        i += 1
+        if component in df.index:
+            fig.add_trace(go.Bar(
+                x=df.columns,
+                y=df.loc[component],
+                name=component,
+                marker=dict(
+                    color=colors[i]  # Assign a color from the green color scale
+                ),
+                legendgroup='Current Liabilities',
+                showlegend=True
+            ), row=1, col=1)
+            i += 1
 
     colors = pc.sequential.Brwnyl[::-1]
     i = 0
 
     for component in liabilities['Total Non Current Liabilities Net Minority Interest']:
-        fig.add_trace(go.Bar(
-            x=df.columns,
-            y=df.loc[component],
-            name=component,
-            marker=dict(
-                color=colors[i]  # Assign a color from the green color scale
-            ),
-            legendgroup='Non-current Liabilities',
-            showlegend=True
-        ), row=1, col=2)
-        i += 1
+        if component in df.index:
+            fig.add_trace(go.Bar(
+                x=df.columns,
+                y=df.loc[component],
+                name=component,
+                marker=dict(
+                    color=colors[i]  # Assign a color from the green color scale
+                ),
+                legendgroup='Non-current Liabilities',
+                showlegend=True
+            ), row=1, col=2)
+            i += 1
 
     offset = 0.03 * max(df.loc['Current Liabilities'].max(),
                         df.loc['Total Non Current Liabilities Net Minority Interest'].max())
@@ -684,15 +690,16 @@ def plot_equity(df, ticker="", currency=""):
     i = 0
 
     for component in equity['Stockholders Equity']:
-        fig.add_trace(go.Bar(
-            x=df.columns,
-            y=df.loc[component],
-            name=component,
-            marker=dict(
-                color=colors[i]  # Assign a color from the green color scale
-            ),
-        ))
-        i += 2
+        if component in df.index:
+            fig.add_trace(go.Bar(
+                x=df.columns,
+                y=df.loc[component],
+                name=component,
+                marker=dict(
+                    color=colors[i]  # Assign a color from the green color scale
+                ),
+            ))
+            i += 2
 
     offset = 0.05 * df.loc['Stockholders Equity'].max()
 
@@ -728,61 +735,61 @@ def plot_income(df, ticker="", currency=""):
     income_st = {
         'Total Revenue': {
             'name': 'Total Revenue',
-            'value': df.loc['Total Revenue'],
+            'sign': '+',
             'base': None,
             'color': 'rgb(0,68,27)'
         },
         'Cost Of Revenue': {
             'name': 'Cost of Revenue',
-            'value': -df.loc['Cost Of Revenue'],
-            'base': df.loc['Total Revenue'],
+            'sign': '-',
+            'base': ['Total Revenue'],
             'color': 'rgb(165,15,21)'
         },
         'Gross Profit': {
             'name': 'Gross Profit',
-            'value': df.loc['Gross Profit'],
+            'sign': '+',
             'base': None,
             'color': 'rgb(35,139,69)'
         },
         'Operating Expense': {
             'name': 'Operating Expense',
-            'value': -df.loc['Operating Expense'],
-            'base': df.loc['Gross Profit'],
+            'sign': '-',
+            'base': ['Gross Profit'],
             'color': 'rgb(239,59,44)'
         },
         'Operating Income': {
             'name': 'Operating Income',
-            'value': df.loc['Operating Income'],
+            'sign': '+',
             'base': None,
             'color': 'rgb(116,196,118)'
         },
         'Net Non Operating Interest Income Expense': {
             'name': 'Net Non Operating I/E',
-            'value': df.loc['Net Non Operating Interest Income Expense'],
-            'base': df.loc['Operating Income'],
+            'sign': '+',
+            'base': ['Operating Income'],
             'color': 'rgb(130, 109, 186)'
         },
         'Other Income Expense': {
             'name': 'Other Income Expense',
-            'value': df.loc['Other Income Expense'],
-            'base': df.loc['Operating Income'] + df.loc['Net Non Operating Interest Income Expense'],
+            'sign': '+',
+            'base': ['Operating Income', 'Net Non Operating Interest Income Expense'],
             'color': 'rgb(185, 152, 221)'
         },
         'Pretax Income': {
             'name': 'Pretax Income',
-            'value': df.loc['Pretax Income'],
+            'sign': '+',
             'base': None,
             'color': 'rgb(199,233,192)'
         },
         'Tax Provision': {
             'name': 'Tax Provision',
-            'value': -df.loc['Tax Provision'],
-            'base': df.loc['Pretax Income'],
+            'sign': '-',
+            'base': ['Pretax Income'],
             'color': 'rgb(252,146,114)'
         },
         'Net Income Common Stockholders': {
             'name': 'Net Income',
-            'value': df.loc['Net Income Common Stockholders'],
+            'sign': '+',
             'base': None,
             'color': 'rgb(224, 253, 74)'
         }
@@ -792,17 +799,28 @@ def plot_income(df, ticker="", currency=""):
     traces = list()
 
     for component in income_st:
-        trace = go.Bar(
-            x=df.columns,
-            y=income_st[component]['value'],
-            name=income_st[component]['name'],
-            base=income_st[component]['base'],
-            marker=dict(
-                color=income_st[component]['color']  # Assign a color from the green color scale
-            ),
-        )
+        if component in df.index:
 
-        traces.append(trace)
+            sign = income_st[component]['sign']
+            value = df.loc[component] if sign == '+' else -df.loc[component]
+
+            base = income_st[component]['base']
+            if base:
+                base = 0
+                for _ in income_st[component]['base']:
+                    base += df.loc[_]
+
+            trace = go.Bar(
+                x=df.columns,
+                y=value,
+                name=income_st[component]['name'],
+                base=base,
+                marker=dict(
+                    color=income_st[component]['color']  # Assign a color from the green color scale
+                ),
+            )
+
+            traces.append(trace)
 
     # Create the figure
     fig = go.Figure(data=traces)
@@ -842,43 +860,45 @@ def plot_cash(df, ticker="", currency=""):
     i = 0
 
     for component in cashflow:
-        if component == 'End Cash Position':
-            for item in cashflow[component]:
-                if item == 'Changes In Cash':
-                    fig.add_trace(go.Scatter(
-                        x=df.columns,
-                        y=df.loc[item],
-                        mode='lines',
-                        line=dict(color='black', width=2, dash='dash'),
-                        name=item,
-                    ))
-                else:
-                    fig.add_trace(go.Bar(
-                        x=df.columns,
-                        y=df.loc[item],
-                        name=item,
-                        marker=dict(
-                            color=colors[i]  # Assign a color from the green color scale
-                        ),
-                    ))
-                    i += 2
-            fig.add_trace(go.Scatter(
-                x=df.columns,
-                y=df.loc[component],
-                mode='lines+markers',
-                line=dict(color='black', width=3),
-                name=component,
-            ))
-        else:
-            fig.add_trace(go.Bar(
-                x=df.columns,
-                y=df.loc[component],
-                name=component,
-                marker=dict(
-                    color=colors[i]  # Assign a color from the green color scale
-                ),
-            ))
-            i += 2
+        if component in df.index:
+            if component == 'End Cash Position':
+                for item in cashflow[component]:
+                    if item in df.index:
+                        if item == 'Changes In Cash':
+                            fig.add_trace(go.Scatter(
+                                x=df.columns,
+                                y=df.loc[item],
+                                mode='lines',
+                                line=dict(color='black', width=2, dash='dash'),
+                                name=item,
+                            ))
+                        else:
+                            fig.add_trace(go.Bar(
+                                x=df.columns,
+                                y=df.loc[item],
+                                name=item,
+                                marker=dict(
+                                    color=colors[i]  # Assign a color from the green color scale
+                                ),
+                            ))
+                            i += 2
+                fig.add_trace(go.Scatter(
+                    x=df.columns,
+                    y=df.loc[component],
+                    mode='lines+markers',
+                    line=dict(color='black', width=3),
+                    name=component,
+                ))
+            else:
+                fig.add_trace(go.Bar(
+                    x=df.columns,
+                    y=df.loc[component],
+                    name=component,
+                    marker=dict(
+                        color=colors[i]  # Assign a color from the green color scale
+                    ),
+                ))
+                i += 2
 
     offset = 0.1 * df.loc['End Cash Position'].max()
 

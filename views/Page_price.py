@@ -32,7 +32,7 @@ with st.sidebar:
 
     TICKERS = st.text_input(
         label="Securities:",
-        value='MSFT',
+        #value='MSFT',
         key='tickers'
     )
 

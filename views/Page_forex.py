@@ -26,6 +26,8 @@ with st.sidebar:
         'British Pound Sterling': 'GBP',
         'Chinese Yuan': 'CNY',
         'Argentine Peso': 'ARS',
+        'Brazilian Real': 'BRL',
+        'Chilean Peso': 'CLP',
         'Bitcoin': 'BTC',
         'Ethereum': 'ETH'
     }
@@ -35,7 +37,9 @@ with st.sidebar:
         'Japanese Yen': 'JPY',
         'British Pound Sterling': 'GBP',
         'Chinese Yuan': 'CNY',
-        'Argentine Peso': 'ARS'
+        'Argentine Peso': 'ARS',
+        'Brazilian Real': 'BRL',
+        'Chilean Peso': 'CLP',
     }
 
     option1 = st.selectbox(

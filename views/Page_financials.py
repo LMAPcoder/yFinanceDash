@@ -26,16 +26,24 @@ for key in all_my_widget_keys_to_keep:
 # ---- SIDEBAR ----
 with st.sidebar:
 
-    TICKER = st.text_input(
+    TICKERS = st.text_input(
         label="Securities:",
         #value='MSFT',
         key='tickers'
     )
 
+    TICKERS = [item.strip() for item in TICKERS.split(",") if item.strip() != ""]
+
+    TICKERS = remove_duplicates(TICKERS)
+
+    TICKERS = TICKERS[:10]
+
     TIME_PERIOD = st.radio(
         label="Time Period:",
         options=["Annual", "Quarterly"]
     )
+
+    TICKERS = [TICKER for TICKER in TICKERS if fetch_info(TICKER) is not None]
 
     st.markdown("Made with ❤️ by Leonardo")
 
@@ -48,74 +56,165 @@ with st.sidebar:
 
 st.title("Financials")
 
-#----FIRST SECTION----
+if len(TICKERS) == 1:
 
-st.header("Balance Sheet")
+    TICKER = TICKERS[0]
 
-info = fetch_info(TICKER)
+    #----BALANCE SHEET----
 
-CURRENCY = info["financialCurrency"]
+    st.header("Balance Sheet")
 
-bs = fetch_balance(TICKER, tp=TIME_PERIOD)
-df = bs.copy()
-df = df.loc[:, df.isna().mean() < 0.5]
+    info = fetch_info(TICKER)
 
-fig = plot_balance(df[df.columns[::-1]], ticker=TICKER, currency=CURRENCY)
+    CURRENCY = info["financialCurrency"]
 
-st.plotly_chart(fig, use_container_width=True)
+    bs = fetch_balance(TICKER, tp=TIME_PERIOD)
+    bs = bs.loc[:, bs.isna().mean() < 0.5]
 
-with st.expander("Show data"):
-    st.dataframe(
-        data=df.reset_index(),
-        hide_index=True
-    )
+    a_bs = fetch_balance(TICKER, tp='Annual')
+    a_bs = a_bs.loc[:, a_bs.isna().mean() < 0.5]
 
-tab1, tab2, tab3 = st.tabs(["Assets", "Liabilities", "Equity"])
+    fig = plot_balance(bs[bs.columns[::-1]], ticker=TICKER, currency=CURRENCY)
 
-with tab1:
-    fig = plot_assets(df, ticker=TICKER, currency=CURRENCY)
     st.plotly_chart(fig, use_container_width=True)
 
-with tab2:
-    fig = plot_liabilities(df, ticker=TICKER, currency=CURRENCY)
+    with st.expander("Ratios"):
+        tab1, tab2 = st.tabs(["Current Ratio", "Debt-to-Equity Ratio"])
+
+        with tab1:
+            fig = plot_current_ratio(bs, ticker=TICKER)
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                #theme=None
+            )
+
+        with tab2:
+            fig = plot_de_ratio(bs, ticker=TICKER)
+            st.plotly_chart(
+                fig,
+                use_container_width=True
+            )
+
+    with st.expander("Show components"):
+
+        tab1, tab2, tab3 = st.tabs(["Assets", "Liabilities", "Equity"])
+
+        with tab1:
+            fig = plot_assets(bs, ticker=TICKER, currency=CURRENCY)
+            st.plotly_chart(fig, use_container_width=True)
+
+        with tab2:
+            fig = plot_liabilities(bs, ticker=TICKER, currency=CURRENCY)
+            st.plotly_chart(fig, use_container_width=True)
+
+        with tab3:
+            fig = plot_equity(bs, ticker=TICKER, currency=CURRENCY)
+            st.plotly_chart(fig, use_container_width=True)
+
+    with st.expander("Show data"):
+        st.dataframe(
+            data=bs.reset_index(),
+            hide_index=True
+        )
+
+
+    #----INCOME STATEMENT----
+
+    st.header("Income Statement")
+
+    ist = fetch_income(TICKER, tp=TIME_PERIOD)
+    ist = ist.loc[:, ist.isna().mean() < 0.5]
+
+    a_ist = fetch_income(TICKER, tp='Annual')
+    a_ist = a_ist.loc[:, a_ist.isna().mean() < 0.5]
+
+    fig = plot_income(ist, ticker=TICKER, currency=CURRENCY)
+
     st.plotly_chart(fig, use_container_width=True)
 
-with tab3:
-    fig = plot_equity(df, ticker=TICKER, currency=CURRENCY)
+    with st.expander("Ratios"):
+        tab1, tab2, tab3, tab4 = st.tabs(
+            ["Net Margin", "Earnings Per Share (EPS)", "Price-to-Earnings (P/E) Ratio", "Return on Equity"]
+        )
+
+        with tab1:
+
+            fig = plot_margins(ist, ticker=TICKER)
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                #theme=None
+            )
+
+        with tab2:
+
+            fig = plot_eps(ist, ticker=TICKER)
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                #theme=None
+            )
+
+        with tab3:
+            fig = plot_pe_ratio(a_ist, ticker=TICKER)
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                # theme=None
+            )
+
+        with tab4:
+            fig = plot_roe(a_ist, a_bs, ticker=TICKER)
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                # theme=None
+            )
+
+
+    with st.expander("Show data"):
+        st.dataframe(
+            data=ist.reset_index(),
+            hide_index=True
+        )
+
+    #----CASH FLOW----
+
+    st.header("Cash Flow")
+
+    cf = fetch_cash(TICKER, tp=TIME_PERIOD)
+    cf = cf.loc[:, cf.isna().mean() < 0.5]
+
+    a_cf = fetch_cash(TICKER, tp='Annual')
+    a_cf = a_cf.loc[:, a_cf.isna().mean() < 0.5]
+
+    fig = plot_cash(cf, ticker=TICKER, currency=CURRENCY)
+
     st.plotly_chart(fig, use_container_width=True)
 
-#----SECOND SECTION----
+    with st.expander("Ratios"):
+        tab1, tab2, tab3 = st.tabs(["FCF per share", "Operating Cash Flow Ratio", "Price-to-Cash Flow (P/CF) Ratio"])
 
-st.header("Income Statement")
+        with tab2:
+            fig = plot_ocf(a_cf, a_bs, ticker=TICKER)
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                # theme=None
+            )
 
-ist = fetch_income(TICKER, tp=TIME_PERIOD)
-df = ist.copy()
-df = df.loc[:, df.isna().mean() < 0.5]
+    with st.expander("Show data"):
+        st.dataframe(
+            data=cf.reset_index(),
+            hide_index=True
+        )
 
-fig = plot_income(df, ticker=TICKER, currency=CURRENCY)
+else:
+    # ----BALANCE SHEET----
 
-st.plotly_chart(fig, use_container_width=True)
+    st.header("Balance Sheet")
 
-with st.expander("Show data"):
-    st.dataframe(
-        data=df.reset_index(),
-        hide_index=True
-    )
+    fig = plot_balance_multiple(TICKERS)
 
-#----THIRD SECTION----
-
-st.header("Cash Flow")
-
-cf = fetch_cash(TICKER, tp=TIME_PERIOD)
-df = cf.copy()
-df = df.loc[:, df.isna().mean() < 0.5]
-
-fig = plot_cash(df, ticker=TICKER, currency=CURRENCY)
-
-st.plotly_chart(fig, use_container_width=True)
-
-with st.expander("Show data"):
-    st.dataframe(
-        data=df.reset_index(),
-        hide_index=True
-    )
+    st.plotly_chart(fig, use_container_width=True)

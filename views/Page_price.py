@@ -30,19 +30,33 @@ for key in all_my_widget_keys_to_keep:
 # ---- SIDEBAR ----
 with st.sidebar:
 
+    PORTFOLIO = st.selectbox(
+        label="Portfolios",
+        options=[None, "Magnificent 7", "Oil&Gas", "Vehicles"],
+        index=0,
+    )
+
+    if PORTFOLIO:
+        if PORTFOLIO == "Magnificent 7":
+            st.session_state["tickers"] = "MSFT, GOOGL, AAPL, AMZN, META, TSLA, NVDA"
+        if PORTFOLIO == "Oil&Gas":
+            st.session_state["tickers"] = "CVX, XOM, SHEL, YPFD.BA, VIST, PAMP.BA"
+        if PORTFOLIO == "Vehicles":
+            st.session_state["tickers"] = "TSLA, F, GM, VOW3.DE, 7203.T, 1211.HK, RACE"
+
     TICKERS = st.text_input(
         label="Securities:",
         #value='MSFT',
         key='tickers'
     )
 
+    st.write("eg.: MSFT, QQQ, SPY (max 10)")
+
     TICKERS = [item.strip() for item in TICKERS.split(",") if item.strip() != ""]
 
-    TICKERS = list(set(TICKERS))
+    TICKERS = remove_duplicates(TICKERS)
 
     TICKERS = TICKERS[:10]
-
-    st.write("eg.: MSFT, QQQ, SPY (max 10)")
 
     period_list = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]
 
@@ -213,16 +227,17 @@ if len(TICKERS) == 1:
 
     #----METRICS----
 
-    PREVIOUS_PRICE = info['previousClose']
+    PREVIOUS_PRICE = info.get('previousClose', 0)
     CHANGE = PRICE - PREVIOUS_PRICE
     CHANGE_PER = (CHANGE/PREVIOUS_PRICE)*100
-    HIGH = info['dayHigh']
-    LOW = info['dayLow']
-    VOLUME = info['volume']
+    HIGH = info.get('dayHigh', 0)
+    LOW = info.get('dayLow', 0)
+    CURRENCY = info.get('financialCurrency', "?")
+    VOLUME = info.get('volume', 0)
 
     st.metric(
         "Latest Price",
-        value=f'{PRICE:.1f} USD',
+        value=f'{PRICE:.1f} {CURRENCY}',
         delta=f'{CHANGE:.1f} ({CHANGE_PER:.2f}%)'
         )
 
@@ -231,12 +246,12 @@ if len(TICKERS) == 1:
 
     col1.metric(
         "High",
-        value=f'{HIGH:.1f} USD'
+        value=f'{HIGH:.1f} {CURRENCY}'
         )
 
     col2.metric(
         "Low",
-        value=f'{LOW:.1f} USD'
+        value=f'{LOW:.1f} {CURRENCY}'
     )
 
     col3.metric(
@@ -248,6 +263,32 @@ if len(TICKERS) == 1:
     hist = fetch_history(TICKER, period=PERIOD, interval=INTERVAL)
 
     df = hist.copy()
+
+    # Price Performance
+
+    col1, col2, col3 = st.columns(3, gap="medium")
+
+    LEN = len(df)
+    Pct_change_1P = (df['Close'].iloc[-1] - df['Close'].iloc[0]) / df['Close'].iloc[0]
+
+    col1.metric(
+        "1 Period",
+        value=f'{Pct_change_1P*100:.2f}%'
+    )
+
+    Pct_change_12P = (df['Close'].iloc[-1] - df['Close'].iloc[int(LEN/2)]) / df['Close'].iloc[int(LEN/2)]
+
+    col2.metric(
+        "1/2 Period",
+        value=f'{Pct_change_12P*100:.2f}%'
+    )
+
+    Pct_change_14P = (df['Close'].iloc[-1] - df['Close'].iloc[int(LEN/4)]) / df['Close'].iloc[int(LEN/4)]
+
+    col3.metric(
+        "1/4 Period",
+        value=f'{Pct_change_14P*100:.2f}%'
+    )
 
     if not TOGGLE_VOL:
         df = df.drop(columns=['Volume'], axis=1)
@@ -342,23 +383,17 @@ else:
             hide_index=True
         )
 
-    # ----GAUGES----
+    # ----PERFORMANCES----
 
     df = pd.concat(dfs_hist, ignore_index=False)
 
-    if len(TICKERS) <= 5:
+    fig = performance_table(df, TICKERS)
 
-        cols = st.columns(5, gap="small")
-
-        for i, TICKER in enumerate(TICKERS):
-
-            fig = plot_gauge(df, TICKER)
-
-            cols[i].plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
 
     # ----LINE CHART----
 
-    fig = plot_candles_stick_bar_multiple(df, "Percent Change Line Chart")
+    fig = plot_line_multiple(df, "Percent Change Line Chart")
 
     st.plotly_chart(fig, use_container_width=True)
 

@@ -45,9 +45,9 @@ def fetch_income(ticker, tp="Annual"):
     return ins
 
 @st.cache_data
-def fetch_cash(ticker, tp="Annually"):
+def fetch_cash(ticker, tp="Annual"):
     ticker = yf.Ticker(ticker)
-    if tp == "Annually":
+    if tp == "Annual":
         cf = ticker.cashflow
     else:
         cf = ticker.quarterly_cashflow
@@ -77,6 +77,14 @@ def format_value(value):
     # Create the formatted string
     return f"{base_value}<br><span style='color: {color};'>{change}</span>"
 
+def remove_duplicates(lst):
+    seen = set()
+    result = []
+    for item in lst:
+        if item not in seen:
+            result.append(item)
+            seen.add(item)
+    return result
 
 def top_table(df):
     fig = go.Figure(data=[go.Table(
@@ -98,12 +106,14 @@ def info_table(info):
     TYPE = info['quoteType']
     if TYPE == "EQUITY":
         data = {
+            'Name': info.get('shortName', ""),
+            'Country': info.get('country', ""),
             'Market Exchange': info['exchange'],
             'Sector': info['sector'],
             'Industry': info['industry'],
-            'Market Capitalization': str(info['marketCap']),
+            'Market Capitalization': str(info.get('marketCap', "")),
             'Quote currency': info['currency'],
-            'Beta': str(info['beta'])
+            'Beta': str(info.get('beta', ""))
         }
         PRICE = info['currentPrice']
 
@@ -282,9 +292,9 @@ def plot_candles_stick_bar(df, title=""):
 
             fig.update_yaxes(title_text="RSI", row=row, col=1)
 
-            fig.add_hline(y=70, line_dash="dash", annotation_text='top', row=2, col=1)
-            fig.add_hline(y=30, line_dash="dash", annotation_text='bottom', row=2, col=1)
-            fig.add_hrect(y0=30, y1=70, fillcolor="blue", opacity=0.25, line_width=0, row=2, col=1)
+            fig.add_hline(y=70, line_dash="dash", annotation_text='top', row=row, col=1)
+            fig.add_hline(y=30, line_dash="dash", annotation_text='bottom', row=row, col=1)
+            fig.add_hrect(y0=30, y1=70, fillcolor="blue", opacity=0.25, line_width=0, row=row, col=1)
 
     fig.update_layout(
         title=title,
@@ -352,7 +362,7 @@ def plot_candles_stick(df, title="", time_span=None):
 
     return fig
 
-def plot_candles_stick_bar_multiple(df, title=""):
+def plot_line_multiple(df, title=""):
     fig = go.Figure()
 
     dfs = df.groupby('Ticker')
@@ -365,6 +375,8 @@ def plot_candles_stick_bar_multiple(df, title=""):
                                  meta=df_name,
                                  hovertemplate='%{meta}: %{y:.2f}<br><extra></extra>', )
                       )
+
+    fig.add_hline(y=0, line_dash="dash")
 
     fig.update_layout(
         title=title,
@@ -441,25 +453,45 @@ def plot_balance(df, ticker="", currency=""):
                 marker=dict(color=components[component]['color'])
             ))
 
-        offset = 0.03 * df.loc['Total Assets'].max()
+    offset = 0.03 * df.loc['Total Assets'].max()
 
-        for i, date in enumerate(df.columns):
+    for i, date in enumerate(df.columns):
+        fig.add_annotation(
+            x=[date, "Assets"],
+            y=df.loc['Total Assets', date]/2,
+            text=str(round(df.loc['Total Assets', date] / 1e9, 1)) + 'B',  # Format as text
+            showarrow=False,
+            font=dict(size=12, color="black"),
+            align="center"
+        )
+        percentage = round((df.loc['Total Liabilities Net Minority Interest', date] / df.loc['Total Assets', date]) * 100, 1)
+        fig.add_annotation(
+            x=[date, "L+E"],
+            y=df.loc['Stockholders Equity', date] + df.loc['Total Liabilities Net Minority Interest', date] / 2,
+            text=str(percentage) + '%',  # Format as text
+            showarrow=False,
+            font=dict(size=12, color="black"),
+            align="center"
+        )
+        if i > 0:
+            percentage = round((df.loc['Total Assets'].iloc[i] / df.loc['Total Assets'].iloc[i - 1] - 1) * 100, 1)
+            sign = '+' if percentage >= 0 else ''
             fig.add_annotation(
                 x=[date, "Assets"],
                 y=df.loc['Total Assets', date] + offset,
-                text=str(round(df.loc['Total Assets', date] / 1e9, 1)) + 'B',  # Format as text
+                text=sign + str(percentage) + '%',  # Format as text
                 showarrow=False,
                 font=dict(size=12, color="black"),
                 align="center"
             )
 
-        fig.update_layout(
-            barmode='stack',
-            title=f'Accounting Balance: {ticker}',
-            xaxis_title='Year',
-            yaxis_title=f'Amount (in {currency})',
-            legend_title='Balance components',
-        )
+    fig.update_layout(
+        barmode='stack',
+        title=f'Accounting Balance: {ticker}',
+        xaxis_title='Year',
+        yaxis_title=f'Amount (in {currency})',
+        legend_title='Balance components',
+    )
 
     return fig
 
@@ -810,15 +842,32 @@ def plot_income(df, ticker="", currency=""):
                 for _ in income_st[component]['base']:
                     base += df.loc[_]
 
-            trace = go.Bar(
-                x=df.columns,
-                y=value,
-                name=income_st[component]['name'],
-                base=base,
-                marker=dict(
-                    color=income_st[component]['color']  # Assign a color from the green color scale
-                ),
-            )
+            if component == "Total Revenue" or component == "Net Income Common Stockholders":
+                percentages = round(df.loc[component].astype('float64').pct_change(periods=-1) * 100, 1)
+                percentages = percentages.apply(
+                    lambda x: f"+{x}%" if x > 0 else ("" if pd.isna(x) else f"{x}%")).tolist()
+                trace = go.Bar(
+                    x=df.columns,
+                    y=value,
+                    name=income_st[component]['name'],
+                    base=base,
+                    marker=dict(
+                        color=income_st[component]['color']  # Assign a color from the green color scale
+                    ),
+                    text=percentages,
+                    textfont=dict(size=12, color='black', family='Arial', weight='bold'),
+                    textposition='outside',
+                )
+            else:
+                trace = go.Bar(
+                    x=df.columns,
+                    y=value,
+                    name=income_st[component]['name'],
+                    base=base,
+                    marker=dict(
+                        color=income_st[component]['color']  # Assign a color from the green color scale
+                    )
+                )
 
             traces.append(trace)
 
@@ -924,6 +973,415 @@ def plot_cash(df, ticker="", currency=""):
         ),
         yaxis_title=f'Amount (in {currency})',
         legend_title='Cash Flow Components',
+    )
+
+    return fig
+
+def plot_balance_multiple(TICKERS):
+    components = {
+        'Total Assets': {
+            'color': 'forestgreen'
+        },
+        'Total Liabilities Net Minority Interest': {
+            'color': 'tomato'
+        },
+    }
+
+    fig = go.Figure()
+    offset_max = 0
+
+    for ticker in TICKERS:
+        data = yf.Ticker(ticker)
+        bs = data.balance_sheet
+        df = bs.iloc[:, :4]
+        df = df[df.columns[::-1]]
+        df.columns = pd.to_datetime(df.columns).strftime('%b %d, %Y')
+
+        show_legend = ticker == TICKERS[0]
+
+        for component in components:
+            fig.add_trace(go.Bar(
+                x=[[ticker] * len(df.columns), df.columns],
+                y=df.loc[component],
+                name=component,
+                marker=dict(color=components[component]['color']),
+                showlegend=show_legend,
+            ))
+
+        offset = 0.03 * df.loc['Total Assets'].max()
+        if offset > offset_max:
+            offset_max = offset
+
+        for i, date in enumerate(df.columns):
+            if i > 0:
+                percentage = round((df.loc['Total Assets'].iloc[i] / df.loc['Total Assets'].iloc[i - 1] - 1) * 100, 1)
+                sign = '+' if percentage > 0 else ''
+                fig.add_annotation(
+                    x=[ticker, date],
+                    y=df.loc['Total Assets', date] + offset_max,
+                    text=sign + str(percentage) + '%',  # Format as text
+                    showarrow=False,
+                    font=dict(size=12, color="black"),
+                    align="center"
+                )
+
+    # Update layout to stack bars and set titles
+    fig.update_layout(
+        barmode='overlay',
+        title=f'Accounting Balance: {", ".join(TICKERS)}',
+        #xaxis_title='Date',
+        yaxis_title=f'Amount',
+        legend=dict(
+            orientation="h",  # Horizontal legend
+            yanchor="top",  # Aligns the legend vertically to the top
+            y=-0.5,  # Positions the legend below the subplots
+            xanchor="center",  # Aligns the legend horizontally to the center
+            x=0.5  # Centers the legend horizontally
+        )
+    )
+    return fig
+
+# PERFORMANCES
+def format_number(val):
+    if isinstance(val, float):
+        if val >= 0:
+            return f"<br><span style='color: green;'>+{val:.2f}%"  # Positive values with a plus sign
+        else:
+            return f"<br><span style='color: red;'>{val:.2f}%"  # Negative values without a sign
+    else:
+        return f"<b>{val}</b>"
+
+def performance_table(df, tickers):
+    perform = {}
+
+    for ticker in tickers:
+        df_t = df[df['Ticker'] == ticker]
+        LEN = len(df_t)
+        Pct_change_1P = (df_t['Close'].iloc[-1] - df_t['Close'].iloc[0]) / df_t['Close'].iloc[0]
+        Pct_change_12P = (df_t['Close'].iloc[-1] - df_t['Close'].iloc[int(LEN / 2)]) / df_t['Close'].iloc[int(LEN / 2)]
+        Pct_change_14P = (df_t['Close'].iloc[-1] - df_t['Close'].iloc[int(LEN / 4)]) / df_t['Close'].iloc[int(LEN / 4)]
+        Pct_change_last = (df_t['Close'].iloc[-1] - df_t['Close'].iloc[-2]) / df_t['Close'].iloc[-2]
+
+        perform[ticker] = {
+            'last': Pct_change_last * 100,
+            '1/4 Period': Pct_change_14P * 100,
+            '1/2 Period': Pct_change_12P * 100,
+            '1 Period': Pct_change_1P * 100,
+        }
+
+    df_perform = pd.DataFrame(perform)
+
+    header = df_perform.columns.tolist()
+    header.insert(0, 'Period')
+    values = [df_perform[col] for col in df_perform.columns]
+    values.insert(0, [1, int(LEN / 4), int(LEN / 2), LEN])
+
+    formatted_values = [[format_number(val) for val in row] for row in values]
+
+    # Create the Plotly Table
+    fig = go.Figure(data=[go.Table(
+        header=dict(values=header,
+                    fill_color='paleturquoise',
+                    align='center',
+                    font=dict(color='black', size=18, weight='bold')
+                    ),
+        cells=dict(values=formatted_values,
+                   align='center',
+                   font=dict(color='black', size=16),
+                   )
+    )])
+
+    fig.update_layout(
+        title='Price Performance',  # Add your title here
+        #title_x=0.5,  # Centers the title horizontally
+        title_font=dict(size=20, family='Arial', color='black'),  # Customize the title font
+        height=250,
+        margin=dict(t=70, b=0, l=0, r=0)
+    )
+    fig.update_layout()
+
+    return fig
+
+def plot_eps(df, ticker):
+    # Create the line chart
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=df.columns,
+        y=df.loc['Basic EPS'],
+        mode='lines+markers',
+        name='Basic EPS',
+        line=dict(color='blue', width=2),
+        marker=dict(size=8, color='blue')
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=df.columns,
+        y=df.loc['Diluted EPS'],
+        mode='lines+markers',
+        name='Diluted EPS',
+        line=dict(color='black', width=2),
+        marker=dict(size=8, color='black')
+    ))
+
+
+    # Add titles and labels
+    fig.update_layout(
+        title=f'EPS: {ticker}',
+        xaxis_title='Date',
+        yaxis_title='EPS',
+        #template='plotly_dark'  # Optional: use a dark theme
+    )
+
+    # Show the plot
+    return fig
+
+
+def plot_pe_ratio(df, ticker):
+    df1 = df.loc['Basic EPS'].iloc[::-1].to_frame()
+
+    data = yf.Ticker(ticker)
+    hist = data.history(
+        period="5y",
+        interval="1d"
+    )
+    df2 = hist.copy()
+    df2.index = hist.index.tz_localize(None)
+
+    merge = pd.merge_asof(df1, df2, left_index=True, right_index=True, direction='backward')
+
+    df1['P/E ratio'] = merge['Close'] / merge['Basic EPS']
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=df1.index,
+        y=df1['P/E ratio'],
+        mode='lines+markers',
+        name='P/E ratio',
+        line=dict(color='blue', width=2),
+        marker=dict(size=8, color='blue')
+    ))
+
+    fig.add_hline(y=15, line_dash="dash", annotation_text='Undervalued by Graham', annotation_position="bottom right")
+
+    fig.update_layout(
+        title=f'P/E Ratio: {ticker}',
+        xaxis_title='Date',
+        yaxis_title='Ratio',
+        #template='plotly_dark'  # Optional: use a dark theme
+    )
+
+    return fig
+
+def plot_roe(df1, df2, ticker):
+
+    df = pd.concat([df1.loc['Net Income Common Stockholders'], df2.loc['Stockholders Equity']], axis=1)
+    df['ROE'] = df['Net Income Common Stockholders'] / df['Stockholders Equity']
+
+    # Create the line chart
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=df.index,
+        y=df['ROE'],
+        mode='lines+markers',
+        name='ROE ratio',
+        line=dict(color='blue', width=2),
+        marker=dict(size=8, color='blue')
+    ))
+
+    fig.add_hline(
+        y=0.1,
+        line_dash="dash",
+        annotation_text='Poor ROE',
+        annotation_position="bottom right"
+    )
+
+    fig.add_hline(
+        y=0.2,
+        line_dash="dash",
+        annotation_text='S&P 500 average',
+    )
+
+    # Add titles and labels
+    fig.update_layout(
+        title=f'ROE: {ticker}',
+        xaxis_title='Date',
+        yaxis_title='Ratio',
+        yaxis=dict(tickformat='.0%', range=[0, None]),
+        #template='plotly_dark'  # Optional: use a dark theme
+    )
+
+    return fig
+def plot_de_ratio(df, ticker):
+
+    df = pd.concat([df.loc['Total Debt'], df.loc['Stockholders Equity']], axis=1)
+    df['D/E ratio'] = df['Total Debt'] / df['Stockholders Equity']
+
+    # Create the line chart
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=df.index,
+        y=df['D/E ratio'],
+        mode='lines+markers',
+        name='D/E ratio',
+        line=dict(color='blue', width=2),
+        marker=dict(size=8, color='blue')
+    ))
+
+    fig.add_hline(
+        y=1,
+        line_dash="dash",
+        annotation_text='Safe',
+        annotation_position="bottom right"
+    )
+
+    fig.add_hline(
+        y=2,
+        line_dash="dash",
+        annotation_text='Risky',
+    )
+
+    # Add titles and labels
+    fig.update_layout(
+        title=f'D/E Ratio: {ticker}',
+        xaxis_title='Date',
+        yaxis_title='Ratio',
+        #template='plotly_dark'  # Optional: use a dark theme
+    )
+
+    return fig
+
+def plot_current_ratio(df, ticker):
+
+    df = pd.concat([df.loc['Current Assets'], df.loc['Current Liabilities']], axis=1)
+    df['Current ratio'] = df['Current Assets'] / df['Current Liabilities']
+
+    # Create the line chart
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=df.index,
+        y=df['Current ratio'],
+        mode='lines+markers',
+        name='Current ratio',
+        line=dict(color='blue', width=2),
+        marker=dict(size=8, color='blue')
+    ))
+
+    fig.add_hline(
+        y=1,
+        line_dash="dash",
+        annotation_text='Liquidity breakpoint',
+        annotation_position="bottom right"
+    )
+
+    fig.add_hline(
+        y=2,
+        line_dash="dash",
+        annotation_text='Recommended by Graham',
+    )
+
+    fig.add_hline(
+        y=3,
+        line_dash="dash",
+        annotation_text='Inneficient assest management',
+    )
+
+    # Add titles and labels
+    fig.update_layout(
+        title=f'Current Ratio: {ticker}',
+        xaxis_title='Date',
+        yaxis_title='Ratio',
+        yaxis=dict(range=[0, None]),
+        #template='plotly_dark'  # Optional: use a dark theme
+    )
+
+    return fig
+
+
+def plot_margins(df, ticker):
+    df = pd.concat([df.loc['Gross Profit'], df.loc['Operating Income'], df.loc['Net Income Common Stockholders'],
+                    df.loc['Total Revenue']], axis=1)
+    df['Gross Margin'] = df['Gross Profit'] / df['Total Revenue']
+    df['Operating Margin'] = df['Operating Income'] / df['Total Revenue']
+    df['Net Margin'] = df['Net Income Common Stockholders'] / df['Total Revenue']
+
+    # Create the line chart
+    fig = go.Figure()
+
+    # Create the line chart
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=df.index,
+        y=df['Gross Margin'],
+        mode='lines+markers',
+        name='Gross Margin',
+        line=dict(color='blue', width=2),
+        marker=dict(size=8, color='blue')
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=df.index,
+        y=df['Operating Margin'],
+        mode='lines+markers',
+        name='Operating Margin',
+        line=dict(color='black', width=2),
+        marker=dict(size=8, color='black')
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=df.index,
+        y=df['Net Margin'],
+        mode='lines+markers',
+        name='Net Margin',
+        line=dict(color='green', width=2),
+        marker=dict(size=8, color='green')
+    ))
+
+    # Add titles and labels
+    fig.update_layout(
+        title=f'Profit Margins: {ticker}',
+        xaxis_title='Date',
+        yaxis_title='Margin',
+        yaxis=dict(tickformat='.0%'),
+        #template='plotly_dark'  # Optional: use a dark theme
+    )
+
+    return fig
+
+def plot_ocf(df1, df2, ticker):
+
+    df = pd.concat([df1.loc['Operating Cash Flow'], df2.loc['Current Liabilities']], axis=1)
+    df['OCF Ratio'] = df['Operating Cash Flow'] / df['Current Liabilities']
+
+    # Create the line chart
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=df.index,
+        y=df['OCF Ratio'],
+        mode='lines+markers',
+        name='OCF ratio',
+        line=dict(color='blue', width=2),
+        marker=dict(size=8, color='blue')
+    ))
+
+    fig.add_hline(
+        y=1,
+        line_dash="dash",
+        annotation_text='Ideal',
+    )
+
+    # Add titles and labels
+    fig.update_layout(
+        title=f'Operating Cash Flow: {ticker}',
+        xaxis_title='Date',
+        yaxis_title='Ratio',
+        #template='plotly_dark'  # Optional: use a dark theme
     )
 
     return fig
